@@ -34,6 +34,14 @@ intact. Supports Claude Code and Codex.
   up on your phone. The bot needs write access to every watched repo.
 - `claude` and/or `codex` on your PATH
 
+## Install
+
+```sh
+brew install searlsco/tap/order_taker
+```
+
+Or from a clone: `bundle install`, then run `bin/order_taker` directly.
+
 ## Setup
 
 ```sh
