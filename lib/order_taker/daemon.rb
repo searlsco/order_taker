@@ -12,7 +12,7 @@ module OrderTaker
       @gh = gh
       @log = log || self.class.method(:default_log)
       @runner = runner
-      @gatherer = Gatherer.new(config: config, state: state, gh: gh, log: log)
+      @gatherer = Gatherer.new(config: config, state: state, gh: gh, log: @log)
       @runs = {}
       @stop = false
     end

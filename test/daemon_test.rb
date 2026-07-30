@@ -102,4 +102,13 @@ class DaemonTest < TLDR
 
     assert_equal 1, @runner.calls.size
   end
+
+  def test_default_logger_is_shared_with_gatherer
+    state = build_state(File.join(@dir, "fresh"))
+    subject = OrderTaker::Daemon.new(config: @config, state: state, gh: @gh)
+
+    subject.tick
+
+    refute_nil state.cursor(REPO, "issues")
+  end
 end
