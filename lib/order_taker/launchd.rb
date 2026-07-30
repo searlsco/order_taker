@@ -24,8 +24,8 @@ module OrderTaker
       PLIST_PATH
     end
 
-    # Pins the current ruby and PATH so launchd's minimal environment can
-    # still find gh, claude, and codex.
+    # Pins the current Ruby, PATH, and locale so launchd's minimal environment
+    # can still find commands and process their UTF-8 output.
     def self.plist(bin_path)
       <<~XML
         <?xml version="1.0" encoding="UTF-8"?>
@@ -42,6 +42,8 @@ module OrderTaker
           </array>
           <key>EnvironmentVariables</key>
           <dict>
+            <key>LANG</key>
+            <string>en_US.UTF-8</string>
             <key>PATH</key>
             <string>#{ENV["PATH"]}</string>
           </dict>
