@@ -55,4 +55,23 @@ class ConfigTest < TLDR
   def test_example_config_parses_and_validates
     OrderTaker::Config.new(JSON.parse(OrderTaker::Config::EXAMPLE))
   end
+
+  def test_load_reads_utf_8_config_when_default_external_encoding_is_us_ascii
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "config.json")
+      File.binwrite(path, JSON.generate(CONFIG_JSON.merge("go_word" => "道")))
+      original_encoding = Encoding.default_external
+      original_verbose = $VERBOSE
+
+      begin
+        $VERBOSE = nil
+        Encoding.default_external = Encoding::US_ASCII
+
+        assert_equal "道", OrderTaker::Config.load(path).go_word
+      ensure
+        Encoding.default_external = original_encoding
+        $VERBOSE = original_verbose
+      end
+    end
+  end
 end

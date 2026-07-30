@@ -11,7 +11,7 @@ module OrderTaker
 
     def self.load(path = PATH)
       raise ConfigError, "No config found at #{path}. Run `order_taker init` to create one." unless File.exist?(path)
-      new(JSON.parse(File.read(path)))
+      new(JSON.parse(File.read(path, encoding: Encoding::UTF_8)))
     rescue JSON::ParserError => e
       raise ConfigError, "Could not parse #{path}: #{e.message}"
     end
