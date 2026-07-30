@@ -23,7 +23,7 @@ module OrderTaker
         end
         argv += ["--add-dir", worktree] if worktree
         argv += extra_args
-        argv << prompt
+        argv += ["--", prompt]
       end
 
       def self.extract(result, record, out_file: nil)

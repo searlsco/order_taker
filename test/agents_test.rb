@@ -4,7 +4,7 @@ class AgentsTest < TLDR
 
     argv = OrderTaker::Agents::Claude.command(prompt: "hi", record: record)
 
-    assert_equal ["claude", "-p", "--dangerously-skip-permissions", "--session-id", "abc-123", "hi"], argv
+    assert_equal ["claude", "-p", "--dangerously-skip-permissions", "--session-id", "abc-123", "--", "hi"], argv
   end
 
   def test_claude_resume_with_worktree_and_extra_args
@@ -12,7 +12,15 @@ class AgentsTest < TLDR
 
     argv = OrderTaker::Agents::Claude.command(prompt: "hi", record: record, worktree: "/wt", extra_args: ["--model", "opus"])
 
-    assert_equal ["claude", "-p", "--dangerously-skip-permissions", "--resume", "abc-123", "--add-dir", "/wt", "--model", "opus", "hi"], argv
+    assert_equal ["claude", "-p", "--dangerously-skip-permissions", "--resume", "abc-123", "--add-dir", "/wt", "--model", "opus", "--", "hi"], argv
+  end
+
+  def test_claude_worktree_does_not_allow_add_dir_to_consume_prompt
+    record = {"session_id" => "abc-123", "session_started" => true}
+
+    argv = OrderTaker::Agents::Claude.command(prompt: "implement it", record: record, worktree: "/wt")
+
+    assert_equal ["--add-dir", "/wt", "--", "implement it"], argv.last(4)
   end
 
   def test_claude_extract_uses_stdout
