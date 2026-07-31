@@ -23,6 +23,14 @@ class AgentsTest < TLDR
     assert_equal ["--add-dir", "/wt", "--", "implement it"], argv.last(4)
   end
 
+  def test_claude_interactive_resume
+    record = {"session_id" => "abc-123"}
+
+    argv = OrderTaker::Agents::Claude.interactive_command(record: record, extra_args: ["--model", "opus"])
+
+    assert_equal ["claude", "--dangerously-skip-permissions", "--resume", "abc-123", "--model", "opus"], argv
+  end
+
   def test_claude_extract_uses_stdout
     result = OrderTaker::Runner::Result.new(stdout: "the plan\n", stderr: "", exit_status: 0, timed_out: false)
 
@@ -38,6 +46,14 @@ class AgentsTest < TLDR
 
     assert_equal ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "--json", "-o", "/o.txt", "hi"], first
     assert_equal ["codex", "exec", "resume", "t-1", "--dangerously-bypass-approvals-and-sandbox", "--json", "-o", "/o.txt", "hi"], resume
+  end
+
+  def test_codex_interactive_resume
+    record = {"session_id" => "t-1"}
+
+    argv = OrderTaker::Agents::Codex.interactive_command(record: record, extra_args: ["--model", "gpt-5"])
+
+    assert_equal ["codex", "resume", "t-1", "--dangerously-bypass-approvals-and-sandbox", "--model", "gpt-5"], argv
   end
 
   def test_codex_extract_parses_thread_id_and_reads_message_file

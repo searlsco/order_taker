@@ -51,6 +51,8 @@ module OrderTaker
         rescue => e
           log.call("#{key}: error finishing run: #{e.class}: #{e.message}")
           state.consume_events(run[:repo], run[:number], run[:batch_size])
+        ensure
+          run[:lock].close
         end
         state.save
         true
@@ -148,12 +150,19 @@ module OrderTaker
           next if runs.key?(key)
           next if record["phase"] == "archived" || record["pending_wind_down"]
           next if record["pending_events"].empty?
-          start_run(repo_config, number.to_i, record, key)
+          lock = SessionLock.try_acquire(key, state_path: state.path)
+          next unless lock
+          begin
+            start_run(repo_config, number.to_i, record, key, lock)
+          rescue
+            lock.close
+            raise
+          end
         end
       end
     end
 
-    def start_run(repo_config, number, record, key)
+    def start_run(repo_config, number, record, key, lock)
       repo = repo_config.full_name
       events = record["pending_events"].dup
       prompt = build_prompt(repo_config, number, record, events)
@@ -189,7 +198,8 @@ module OrderTaker
         stdout_path: File.join(run_dir, "stdout.log"),
         stderr_path: File.join(run_dir, "stderr.log"),
         started_at: started_at,
-        started_monotonic: Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        started_monotonic: Process.clock_gettime(Process::CLOCK_MONOTONIC),
+        lock: lock
       }
       write_run_manifest(run, status: "running")
       run[:thread] = Thread.new do

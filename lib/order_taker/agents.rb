@@ -29,6 +29,10 @@ module OrderTaker
       def self.extract(result, record, out_file: nil)
         {"message" => result.stdout.strip, "session_id" => record["session_id"]}
       end
+
+      def self.interactive_command(record:, extra_args: [])
+        ["claude", "--dangerously-skip-permissions", "--resume", record["session_id"], *extra_args]
+      end
     end
 
     module Codex
@@ -53,6 +57,11 @@ module OrderTaker
         }.first
         message = File.exist?(out_file) ? File.read(out_file).strip : ""
         {"message" => message, "session_id" => session_id}
+      end
+
+      def self.interactive_command(record:, extra_args: [])
+        ["codex", "resume", record["session_id"],
+          "--dangerously-bypass-approvals-and-sandbox", *extra_args]
       end
     end
   end

@@ -98,6 +98,11 @@ order_taker install   # installs and loads the launchd agent
   alongside a `run.json` manifest with its session ID, duration, exit status,
   and timeout status.
 - `order_taker status` shows watched repos and session state.
+- `order_taker resume searls/lip_gloss#35` continues an existing Claude or
+  Codex session interactively in your terminal. The owner may be omitted when
+  only one watched repository has that name. Issue and PR numbers both resolve
+  to the same session. In work phase, the terminal opens in that issue's
+  worktree. GitHub events remain queued until the local session exits.
 
 ## Development
 

@@ -121,6 +121,26 @@ class DaemonTest < TLDR
     assert_equal 1, @runner.calls.size
   end
 
+  def test_session_lock_keeps_events_queued_until_local_resume_exits
+    record = @state.ensure_issue(REPO, 7, agent: "claude")
+    record["session_id"] = "uuid-7"
+    @state.append_events(REPO, 7, [{"type" => "comment", "author" => "searls", "body" => "hi"}])
+    lock = OrderTaker::SessionLock.try_acquire("#{REPO}#7", state_path: @state.path)
+    subject = daemon(OrderTaker::Runner::Result.new(
+      stdout: "ok", stderr: "", exit_status: 0, timed_out: false))
+
+    subject.tick
+
+    assert_empty @runner.calls
+    assert_equal 1, record["pending_events"].size
+
+    lock.close
+    subject.tick
+    sleep 0.05
+
+    assert_equal 1, @runner.calls.size
+  end
+
   def test_default_logger_is_shared_with_gatherer
     state = build_state(File.join(@dir, "fresh"))
     subject = OrderTaker::Daemon.new(config: @config, state: state, gh: @gh)

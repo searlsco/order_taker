@@ -9,11 +9,12 @@ module OrderTaker
       when "uninstall" then uninstall
       when "init" then init
       when "status" then status
+      when "resume" then return resume(argv[1]) ? 0 : 1
       when "version", "--version", "-v" then puts VERSION
       else help
       end
       0
-    rescue ConfigError => e
+    rescue ConfigError, LocalResumeError => e
       warn e.message
       1
     end
@@ -67,9 +68,15 @@ module OrderTaker
       end
     end
 
+    def resume(reference)
+      raise LocalResumeError, "Usage: order_taker resume [owner/]repo#issue-or-pr" unless reference
+
+      LocalResume.new(config: Config.load, state: State.new).call(reference)
+    end
+
     def help
       puts <<~TXT
-        order_taker #{VERSION} — GitHub-driven agent sessions
+        order_taker #{VERSION}: GitHub-driven agent sessions
 
         Usage: order_taker <command>
 
@@ -78,6 +85,7 @@ module OrderTaker
           install    Install and load the launchd agent
           uninstall  Unload and remove the launchd agent
           status     Show watched repos and session state
+          resume     Continue locally: resume [owner/]repo#issue-or-pr
           version    Print version
       TXT
     end
