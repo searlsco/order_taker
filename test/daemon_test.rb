@@ -9,8 +9,14 @@ class DaemonTest < TLDR
       @calls = []
     end
 
-    def run(argv, cwd:, timeout:)
-      @calls << {argv: argv, cwd: cwd, timeout: timeout}
+    def run(argv, cwd:, timeout:, stdout_path:, stderr_path:)
+      @calls << {
+        argv: argv,
+        cwd: cwd,
+        timeout: timeout,
+        stdout_path: stdout_path,
+        stderr_path: stderr_path
+      }
       @result
     end
   end
@@ -65,8 +71,20 @@ class DaemonTest < TLDR
     assert_equal 1, @gh.posted.size
     assert_includes @gh.posted.first[:body], "exited 1"
     assert_includes @gh.posted.first[:body], "boom"
+    assert_includes @gh.posted.first[:body], "Full logs saved locally"
     assert_empty record["pending_events"]
     refute record["session_started"]
+
+    run_dir = File.dirname(@runner.calls.first[:stdout_path])
+    assert_equal "", File.read(File.join(run_dir, "stdout.log"))
+    assert_equal "boom\n", File.read(File.join(run_dir, "stderr.log"))
+    manifest = JSON.parse(File.read(File.join(run_dir, "run.json")))
+    assert_equal REPO, manifest["repo"]
+    assert_equal 7, manifest["number"]
+    assert_equal "claude", manifest["agent"]
+    assert_equal "uuid-7", manifest["session_id"]
+    assert_equal 1, manifest["exit_status"]
+    refute manifest["timed_out"]
   end
 
   def test_wind_down_archives_and_clears_pending_events

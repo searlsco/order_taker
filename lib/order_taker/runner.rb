@@ -8,14 +8,14 @@ module OrderTaker
       end
     end
 
-    def self.run(argv, cwd:, timeout:)
+    def self.run(argv, cwd:, timeout:, stdout_path: nil, stderr_path: nil)
       out_r, out_w = IO.pipe
       err_r, err_w = IO.pipe
       pid = Process.spawn(*argv, chdir: cwd, in: :close, out: out_w, err: err_w, pgroup: true)
       out_w.close
       err_w.close
-      out_thread = Thread.new { out_r.read }
-      err_thread = Thread.new { err_r.read }
+      out_thread = Thread.new { capture(out_r, stdout_path) }
+      err_thread = Thread.new { capture(err_r, stderr_path) }
 
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
       status = nil
@@ -40,6 +40,19 @@ module OrderTaker
       )
     ensure
       [out_r, err_r].each { |io| io.close unless io.closed? }
+    end
+
+    def self.capture(io, path)
+      output = +""
+      file = File.open(path, "wb") if path
+      while (chunk = io.read(16 * 1024))
+        output << chunk
+        file&.write(chunk)
+        file&.flush
+      end
+      output
+    ensure
+      file&.close
     end
 
     def self.kill_group(pid)

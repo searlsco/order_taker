@@ -92,8 +92,11 @@ order_taker install   # installs and loads the launchd agent
 - Failure behavior: if an agent run dies or times out, the failure is posted
   as a comment so you can reply to retry. If the daemon restarts mid-run,
   pending events are preserved and the run repeats.
-- State lives in `~/.local/state/order_taker/state.json`; logs in
-  `~/.local/state/order_taker/log/`.
+- State lives in `~/.local/state/order_taker/state.json`; daemon logs live in
+  `~/.local/state/order_taker/log/`. Each agent invocation streams stdout and
+  stderr to a timestamped directory under `~/.local/state/order_taker/runs/`
+  alongside a `run.json` manifest with its session ID, duration, exit status,
+  and timeout status.
 - `order_taker status` shows watched repos and session state.
 
 ## Development

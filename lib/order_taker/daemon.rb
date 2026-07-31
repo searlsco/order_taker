@@ -1,4 +1,5 @@
 require "fileutils"
+require "json"
 require "time"
 
 module OrderTaker
@@ -60,6 +61,7 @@ module OrderTaker
       result = run[:thread].value
       repo, number = run[:repo], run[:number]
       record = state.issue(repo, number)
+      persist_run_artifacts(run, result)
       extracted = run[:agent].extract(result, record, out_file: run[:out_file])
       state.consume_events(repo, number, run[:batch_size])
 
@@ -77,6 +79,8 @@ module OrderTaker
           ```
           #{stderr_tail.strip}
           ```
+
+          Full logs saved locally under `#{display_path(run[:run_dir])}`.
 
           Reply here to try again.
         MD
@@ -154,9 +158,15 @@ module OrderTaker
       events = record["pending_events"].dup
       prompt = build_prompt(repo_config, number, record, events)
       agent = Agents.for(record["agent"])
-      out_file = File.join(State::DIR, "runs", key.tr("/#", "--"), "last_message.txt")
-      FileUtils.mkdir_p(File.dirname(out_file))
-      FileUtils.rm_f(out_file)
+      started_at = Time.now.utc
+      run_dir = File.join(
+        File.dirname(state.path),
+        "runs",
+        key.tr("/#", "--"),
+        started_at.strftime("%Y%m%dT%H%M%S.%6NZ")
+      )
+      FileUtils.mkdir_p(run_dir)
+      out_file = File.join(run_dir, "last_message.txt")
 
       argv = agent.command(
         prompt: prompt,
@@ -166,16 +176,70 @@ module OrderTaker
         out_file: out_file
       )
       timeout = config.run_timeout_seconds
-      thread = Thread.new { @runner.run(argv, cwd: repo_config.path, timeout: timeout) }
-      runs[key] = {
-        thread: thread,
+      run = {
         repo: repo,
         number: number,
         batch_size: events.size,
         agent: agent,
-        out_file: out_file
+        agent_name: record["agent"],
+        session_id: record["session_id"],
+        phase: record["phase"],
+        out_file: out_file,
+        run_dir: run_dir,
+        stdout_path: File.join(run_dir, "stdout.log"),
+        stderr_path: File.join(run_dir, "stderr.log"),
+        started_at: started_at,
+        started_monotonic: Process.clock_gettime(Process::CLOCK_MONOTONIC)
       }
+      write_run_manifest(run, status: "running")
+      run[:thread] = Thread.new do
+        @runner.run(
+          argv,
+          cwd: repo_config.path,
+          timeout: timeout,
+          stdout_path: run[:stdout_path],
+          stderr_path: run[:stderr_path]
+        )
+      end
+      runs[key] = run
       log.call("#{key}: started #{record["agent"]} run (#{record["phase"]} phase, #{events.size} event(s))")
+    end
+
+    def persist_run_artifacts(run, result)
+      File.write(run[:stdout_path], result.stdout.to_s) unless File.exist?(run[:stdout_path])
+      File.write(run[:stderr_path], result.stderr.to_s) unless File.exist?(run[:stderr_path])
+      write_run_manifest(run, status: result.success? ? "succeeded" : "failed", result: result)
+      log.call("#{run[:repo]}##{run[:number]}: run artifacts saved to #{display_path(run[:run_dir])}")
+    end
+
+    def write_run_manifest(run, status:, result: nil)
+      finished_at = Time.now.utc if result
+      manifest = {
+        "repo" => run[:repo],
+        "number" => run[:number],
+        "agent" => run[:agent_name],
+        "session_id" => run[:session_id],
+        "phase" => run[:phase],
+        "status" => status,
+        "started_at" => run[:started_at].iso8601(6),
+        "stdout" => "stdout.log",
+        "stderr" => "stderr.log"
+      }
+      if result
+        manifest.merge!(
+          "finished_at" => finished_at.iso8601(6),
+          "elapsed_seconds" => (
+            Process.clock_gettime(Process::CLOCK_MONOTONIC) - run[:started_monotonic]
+          ).round(3),
+          "exit_status" => result.exit_status,
+          "timed_out" => result.timed_out
+        )
+      end
+      File.write(File.join(run[:run_dir], "run.json"), JSON.pretty_generate(manifest))
+    end
+
+    def display_path(path)
+      path.sub(/\A#{Regexp.escape(Dir.home)}/, "~")
     end
 
     def build_prompt(repo_config, number, record, events)
