@@ -24,6 +24,24 @@ intact. Supports Claude Code and Codex.
    mechanically removes the worktree, deletes the branch if merged, and
    archives the session. Commenting again on an archived thread revives it.
 
+## Continue locally
+
+For a faster back-and-forth than GitHub comments, continue the same Claude or
+Codex session interactively in your terminal:
+
+```sh
+order_taker resume searls/lip_gloss#35
+order_taker resume lip_gloss#35
+```
+
+The reference may use the tracked issue number or PR number. The owner may be
+omitted when only one watched repository has that name. During planning, the
+session opens in the configured clone; during implementation, it opens in the
+issue's worktree.
+
+While the local session is open, the daemon will not resume that session
+concurrently. New GitHub events remain queued and are handled after you exit.
+
 ## Requirements
 
 - macOS with the lid open (display sleep is fine; a closed lid stops launchd
@@ -98,11 +116,6 @@ order_taker install   # installs and loads the launchd agent
   alongside a `run.json` manifest with its session ID, duration, exit status,
   and timeout status.
 - `order_taker status` shows watched repos and session state.
-- `order_taker resume searls/lip_gloss#35` continues an existing Claude or
-  Codex session interactively in your terminal. The owner may be omitted when
-  only one watched repository has that name. Issue and PR numbers both resolve
-  to the same session. In work phase, the terminal opens in that issue's
-  worktree. GitHub events remain queued until the local session exits.
 
 ## Development
 
