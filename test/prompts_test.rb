@@ -32,6 +32,16 @@ class PromptsTest < TLDR
     assert_includes prompt, "Closes #5"
   end
 
+  def test_work_prompt_prescribes_focused_tests_and_a_single_pre_pr_gate
+    prompt = OrderTaker::Prompts.work(repo: "searls/example", number: 5, events: EVENTS,
+      worktree: "/wt/example-5", branch: "order-taker/issue-5", default_branch: "main")
+
+    assert_includes prompt, "run only focused tests"
+    assert_includes prompt, "documented pre-PR gate"
+    assert_includes prompt, "Do not rerun broad suites after"
+    refute_includes prompt, "Run the repository's test suite"
+  end
+
   def test_work_resume_prompt_references_existing_branch
     prompt = OrderTaker::Prompts.work_resume(repo: "searls/example", number: 5, events: EVENTS,
       worktree: "/wt/example-5", branch: "order-taker/issue-5")

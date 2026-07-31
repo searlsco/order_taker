@@ -56,8 +56,13 @@ module OrderTaker
         for you at #{worktree} on branch #{branch} (based on origin/#{default_branch}).
         Work only inside that worktree, using absolute paths.
 
-        1. Implement the plan as discussed, including tests.
-        2. Run the repository's test suite in the worktree and get it green.
+        1. Implement the plan as discussed, including tests. While iterating,
+           run only focused tests (e.g. script/test_focus) for the code you
+           are changing.
+        2. Before opening a PR, run the repository's documented pre-PR gate
+           (script/test if present, otherwise the documented suite) once in
+           the worktree and get it green. Do not rerun broad suites after
+           every edit; gate scripts self-skip when the tree is unchanged.
         3. Commit your work with clear messages.
         4. Push the branch: git push -u origin #{branch}
         5. Open a pull request with gh pr create, including "Closes ##{number}"
