@@ -25,7 +25,10 @@ class DaemonTest < TLDR
     @dir = Dir.mktmpdir
     @state = build_state(@dir)
     OrderTaker::Gatherer::CURSORS.each { |kind| @state.set_cursor(REPO, kind, "2026-01-01T00:00:00Z") }
-    @gh = FakeGh.new
+    @gh = FakeGh.new(responses: {
+      "repos/#{REPO}/issues/1" => {"state" => "open"},
+      "repos/#{REPO}/issues/7" => {"state" => "open"}
+    })
     @config = build_config("repos" => {REPO => {"path" => @dir}})
   end
 
@@ -103,6 +106,20 @@ class DaemonTest < TLDR
     assert_empty record["pending_events"]
     assert_nil record["pending_wind_down"]
     assert_empty @gh.posted
+  end
+
+  def test_closed_issue_is_not_started
+    record = @state.ensure_issue(REPO, 7, agent: "claude")
+    record["session_id"] = "uuid-7"
+    @state.append_events(REPO, 7, [{"type" => "comment", "author" => "searls", "body" => "fixed"}])
+    @gh = FakeGh.new(responses: {"repos/#{REPO}/issues/7" => {"state" => "closed"}})
+    subject = daemon(OrderTaker::Runner::Result.new(stdout: "should not run", stderr: "", exit_status: 0, timed_out: false))
+
+    subject.tick
+
+    assert_empty @runner.calls
+    assert_equal({"merged" => false}, record["pending_wind_down"])
+    assert_equal 1, record["pending_events"].size
   end
 
   def test_concurrency_cap_limits_simultaneous_runs

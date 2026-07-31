@@ -153,6 +153,12 @@ module OrderTaker
           lock = SessionLock.try_acquire(key, state_path: state.path)
           next unless lock
           begin
+            if gh.api("repos/#{repo_config.full_name}/issues/#{number}")["state"] == "closed"
+              request_wind_down(repo: repo_config.full_name, number: number.to_i, merged: false)
+              log.call("#{key}: not starting run because thread is closed")
+              lock.close
+              next
+            end
             start_run(repo_config, number.to_i, record, key, lock)
           rescue
             lock.close
