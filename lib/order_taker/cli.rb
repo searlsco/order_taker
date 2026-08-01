@@ -2,11 +2,17 @@ require "fileutils"
 
 module OrderTaker
   class Cli
+    def initialize(config: Config, launchd: Launchd)
+      @config = config
+      @launchd = launchd
+    end
+
     def call(argv)
       case argv.first
       when "run" then run
       when "install" then install
       when "uninstall" then uninstall
+      when "restart" then restart
       when "init" then init
       when "status" then status
       when "resume" then return resume(argv[1]) ? 0 : 1
@@ -20,6 +26,8 @@ module OrderTaker
     end
 
     private
+
+    attr_reader :config, :launchd
 
     def run
       config = Config.load
@@ -37,6 +45,11 @@ module OrderTaker
     def uninstall
       plist = Launchd.uninstall
       puts "Unloaded and removed #{plist}"
+    end
+
+    def restart
+      config.load # fail fast on invalid config before restarting
+      puts "Restarted #{launchd.restart}"
     end
 
     def init
@@ -84,6 +97,7 @@ module OrderTaker
           run        Run the daemon in the foreground
           install    Install and load the launchd agent
           uninstall  Unload and remove the launchd agent
+          restart    Restart the launchd agent and reload configuration
           status     Show watched repos and session state
           resume     Continue locally: resume [owner/]repo#issue-or-pr
           version    Print version

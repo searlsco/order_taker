@@ -24,6 +24,12 @@ module OrderTaker
       PLIST_PATH
     end
 
+    def self.restart(command: method(:system))
+      command.call("launchctl", "kickstart", "-k", "gui/#{Process.uid}/#{LABEL}") or
+        raise Error, "launchctl restart failed; run `order_taker install` first"
+      LABEL
+    end
+
     # Pins the current Ruby, PATH, and locale so launchd's minimal environment
     # can still find commands and process their UTF-8 output.
     def self.plist(bin_path)

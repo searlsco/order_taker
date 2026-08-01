@@ -68,6 +68,12 @@ $EDITOR ~/.config/order_taker/config.json
 order_taker install   # installs and loads the launchd agent
 ```
 
+After changing the config, restart the daemon so it reloads the file:
+
+```sh
+order_taker restart
+```
+
 ## Config
 
 ```json
