@@ -74,6 +74,7 @@ order_taker install   # installs and loads the launchd agent
 {
   "authorized_authors": ["searls", "bitsly"],
   "go_word": "roadhouse",
+  "ignore_word": "hush",
   "default_agent": "claude",
   "poll_interval_seconds": 60,
   "max_concurrent_runs": 2,
@@ -94,6 +95,9 @@ order_taker install   # installs and loads the launchd agent
   ignores its own comments, even though the bot is listed here.)
 - `go_word`: a distinctive word that authorizes implementation. Pick something
   you would never type by accident.
+- `ignore_word` is optional. Activity containing it as a whole word is ignored:
+  it cannot create, revive, or resume an agent session. Use it when adding a
+  GitHub note that Order Taker should leave alone.
 - Put `#claude` or `#codex` in an issue title or body to override
   `default_agent` for that thread. The choice locks when the session starts.
 - `repos` points at your existing local clones, so agents see your real

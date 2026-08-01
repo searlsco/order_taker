@@ -59,7 +59,8 @@ module OrderTaker
         author = item.dig("user", "login")
         pr = item["pull_request"]
 
-        if !pr && item["created_at"] > cursor && authorized_human?(author)
+        if !pr && item["created_at"] > cursor && authorized_human?(author) &&
+            !ignored?("#{item["title"]}\n#{item["body"]}")
           open_session(repo_config, item)
         end
 
@@ -97,6 +98,7 @@ module OrderTaker
         max_seen = [max_seen, created].max
         author = comment.dig("user", "login")
         next unless authorized_human?(author)
+        next if ignored?(comment["body"])
 
         number = comment["issue_url"][%r{/(\d+)\z}, 1].to_i
         if (target = route_target(repo, number))
@@ -121,6 +123,7 @@ module OrderTaker
         max_seen = [max_seen, created].max
         author = comment.dig("user", "login")
         next unless authorized_human?(author)
+        next if ignored?(comment["body"])
 
         pr_number = comment["pull_request_url"][%r{/(\d+)\z}, 1].to_i
         next unless (target = route_target(repo, pr_number))
@@ -151,6 +154,7 @@ module OrderTaker
           max_seen = [max_seen, submitted].max
           author = review.dig("user", "login")
           next unless authorized_human?(author)
+          next if ignored?(review["body"])
           next if review["state"] == "COMMENTED" && review["body"].to_s.empty? # container for inline comments
 
           state.append_events(repo, number.to_i, [{
@@ -240,6 +244,10 @@ module OrderTaker
 
     def authorized_human?(login)
       config.authorized?(login) && !bot?(login)
+    end
+
+    def ignored?(text)
+      Triggers.ignore?(text, config.ignore_word)
     end
 
     def bot?(login)

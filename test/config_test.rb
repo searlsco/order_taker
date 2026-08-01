@@ -4,6 +4,7 @@ class ConfigTest < TLDR
 
     assert_equal ["searls", "bitsly"], config.authorized_authors
     assert_equal "roadhouse", config.go_word
+    assert_nil config.ignore_word
     assert_equal "claude", config.default_agent
     assert_equal 60, config.poll_interval_seconds
     assert_equal 2, config.max_concurrent_runs
@@ -36,6 +37,16 @@ class ConfigTest < TLDR
 
   def test_blank_go_word_raises
     assert_raises(OrderTaker::ConfigError) { build_config("go_word" => "  ") }
+  end
+
+  def test_ignore_word_is_optional_and_case_insensitive
+    config = build_config("ignore_word" => "  Hush  ")
+
+    assert_equal "hush", config.ignore_word
+  end
+
+  def test_blank_ignore_word_raises
+    assert_raises(OrderTaker::ConfigError) { build_config("ignore_word" => "  ") }
   end
 
   def test_bogus_agent_raises

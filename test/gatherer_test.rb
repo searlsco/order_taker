@@ -12,9 +12,9 @@ class GathererTest < TLDR
     FileUtils.remove_entry(@dir)
   end
 
-  def gatherer(responses = {})
+  def gatherer(responses = {}, config = build_config)
     @gh = FakeGh.new(responses: responses)
-    OrderTaker::Gatherer.new(config: build_config, state: @state, gh: @gh, log: NULL_LOG)
+    OrderTaker::Gatherer.new(config: config, state: @state, gh: @gh, log: NULL_LOG)
   end
 
   def issue_json(number, title: "A bug", body: "fix it", author: "searls", state: "open", created_at: "2026-02-01T00:00:00Z", closed_at: nil, pull_request: nil)
@@ -54,6 +54,18 @@ class GathererTest < TLDR
       record["pending_events"]
   end
 
+  def test_ignore_word_in_new_issue_does_not_open_session
+    config = build_config("ignore_word" => "hush")
+    subject = gatherer(
+      {"repos/#{REPO}/issues" => [issue_json(7, title: "A bug HUSH")]},
+      config
+    )
+
+    subject.poll
+
+    assert_empty @state.issues(REPO)
+  end
+
   def test_hashtag_selects_codex
     subject = gatherer("repos/#{REPO}/issues" => [issue_json(7, title: "A bug #codex")])
 
@@ -82,6 +94,32 @@ class GathererTest < TLDR
     subject.poll
 
     assert_equal ["more detail"], @state.issue(REPO, 7)["pending_events"].map { |event| event["body"] }
+  end
+
+  def test_ignore_word_in_comment_does_not_resume_session
+    @state.ensure_issue(REPO, 7, agent: "claude")
+    config = build_config("ignore_word" => "hush")
+    subject = gatherer(
+      {"repos/#{REPO}/issues/comments" => [comment_json(7, body: "Hush, noting this for later")]},
+      config
+    )
+
+    subject.poll
+
+    assert_empty @state.issue(REPO, 7)["pending_events"]
+    assert_equal "2026-02-01T00:00:00Z", @state.cursor(REPO, "comments")
+  end
+
+  def test_ignore_word_in_comment_does_not_enroll_unknown_thread
+    config = build_config("ignore_word" => "hush")
+    subject = gatherer(
+      {"repos/#{REPO}/issues/comments" => [comment_json(7, body: "hush, just a note")]},
+      config
+    )
+
+    subject.poll
+
+    assert_empty @state.issues(REPO)
   end
 
   def test_bot_and_stale_comments_ignored
@@ -148,6 +186,23 @@ class GathererTest < TLDR
     assert_equal [{"type" => "review_comment", "author" => "searls", "path" => "lib/widget.rb", "body" => "rename this"}], events
   end
 
+  def test_ignore_word_in_review_comment_does_not_resume_session
+    @state.ensure_issue(REPO, 7, agent: "claude")["pr_number"] = 9
+    config = build_config("ignore_word" => "hush")
+    subject = gatherer(
+      {"repos/#{REPO}/pulls/comments" => [{
+        "body" => "hush, leaving myself a note", "path" => "lib/widget.rb",
+        "user" => {"login" => "searls"}, "created_at" => "2026-02-01T00:00:00Z",
+        "pull_request_url" => "https://api.github.com/repos/#{REPO}/pulls/9"
+      }]},
+      config
+    )
+
+    subject.poll
+
+    assert_empty @state.issue(REPO, 7)["pending_events"]
+  end
+
   def test_review_summaries_polled_for_sessions_with_prs
     @state.ensure_issue(REPO, 7, agent: "claude")["pr_number"] = 9
     subject = gatherer("repos/#{REPO}/pulls/9/reviews" => [
@@ -159,6 +214,22 @@ class GathererTest < TLDR
 
     events = @state.issue(REPO, 7)["pending_events"]
     assert_equal ["close, but"], events.map { |event| event["body"] }
+  end
+
+  def test_ignore_word_in_review_does_not_resume_session
+    @state.ensure_issue(REPO, 7, agent: "claude")["pr_number"] = 9
+    config = build_config("ignore_word" => "hush")
+    subject = gatherer(
+      {"repos/#{REPO}/pulls/9/reviews" => [{
+        "state" => "CHANGES_REQUESTED", "body" => "hush, drafting feedback",
+        "user" => {"login" => "searls"}, "submitted_at" => "2026-02-01T00:00:00Z"
+      }]},
+      config
+    )
+
+    subject.poll
+
+    assert_empty @state.issue(REPO, 7)["pending_events"]
   end
 
   def test_comment_revives_archived_session_to_plan_phase

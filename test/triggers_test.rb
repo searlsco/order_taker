@@ -13,4 +13,11 @@ class TriggersTest < TLDR
     refute OrderTaker::Triggers.go?("sounds good, keep planning", "roadhouse")
     refute OrderTaker::Triggers.go?(nil, "roadhouse")
   end
+
+  def test_ignore_word_matches_whole_word_case_insensitively
+    assert OrderTaker::Triggers.ignore?("Please HUSH for now", "hush")
+    refute OrderTaker::Triggers.ignore?("This is hushpuppy", "hush")
+    refute OrderTaker::Triggers.ignore?("Please reply", "hush")
+    refute OrderTaker::Triggers.ignore?("Please hush", nil)
+  end
 end

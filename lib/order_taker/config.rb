@@ -6,7 +6,7 @@ module OrderTaker
 
     RepoConfig = Struct.new(:full_name, :path, :default_agent, :agent_args, keyword_init: true)
 
-    attr_reader :authorized_authors, :go_word, :default_agent, :repos,
+    attr_reader :authorized_authors, :go_word, :ignore_word, :default_agent, :repos,
       :poll_interval_seconds, :max_concurrent_runs, :run_timeout_seconds
 
     def self.load(path = PATH)
@@ -23,6 +23,11 @@ module OrderTaker
 
       @go_word = require_key(json, "go_word").to_s.downcase
       raise ConfigError, "go_word must not be blank" if @go_word.strip.empty?
+
+      if json.key?("ignore_word")
+        @ignore_word = json["ignore_word"].to_s.strip.downcase
+        raise ConfigError, "ignore_word must not be blank" if @ignore_word.empty?
+      end
 
       @default_agent = json.fetch("default_agent", "claude")
       raise ConfigError, "default_agent must be \"claude\" or \"codex\"" unless %w[claude codex].include?(@default_agent)
@@ -59,6 +64,7 @@ module OrderTaker
       {
         "authorized_authors": ["searls", "bitsly"],
         "go_word": "roadhouse",
+        "ignore_word": "hush",
         "default_agent": "claude",
         "poll_interval_seconds": 60,
         "max_concurrent_runs": 2,

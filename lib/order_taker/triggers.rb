@@ -12,5 +12,10 @@ module OrderTaker
     def self.go?(text, go_word)
       /\b#{Regexp.escape(go_word)}\b/i.match?(text.to_s)
     end
+
+    def self.ignore?(text, ignore_word)
+      return false unless ignore_word
+      /\b#{Regexp.escape(ignore_word)}\b/i.match?(text.to_s)
+    end
   end
 end
