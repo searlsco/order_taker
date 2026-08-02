@@ -81,6 +81,7 @@ order_taker restart
   "authorized_authors": ["searls", "bitsly"],
   "go_word": "roadhouse",
   "ignore_word": "hush",
+  "cleanup_word": "cleanup",
   "default_agent": "claude",
   "poll_interval_seconds": 60,
   "max_concurrent_runs": 2,
@@ -104,6 +105,10 @@ order_taker restart
 - `ignore_word` is optional. Activity containing it as a whole word is ignored:
   it cannot create, revive, or resume an agent session. Use it when adding a
   GitHub note that Order Taker should leave alone.
+- `cleanup_word` is optional. Use it in an issue or PR comment to wind down its
+  existing session. Order Taker waits for any active run, removes its worktree,
+  clears queued events, and archives the session. It does not enroll an unknown
+  thread or revive an archived session.
 - Put `#claude` or `#codex` in an issue title or body to override
   `default_agent` for that thread. The choice locks when the session starts.
 - `repos` points at your existing local clones, so agents see your real

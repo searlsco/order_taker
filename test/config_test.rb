@@ -5,6 +5,7 @@ class ConfigTest < TLDR
     assert_equal ["searls", "bitsly"], config.authorized_authors
     assert_equal "roadhouse", config.go_word
     assert_nil config.ignore_word
+    assert_nil config.cleanup_word
     assert_equal "claude", config.default_agent
     assert_equal 60, config.poll_interval_seconds
     assert_equal 2, config.max_concurrent_runs
@@ -30,7 +31,7 @@ class ConfigTest < TLDR
 
   def test_missing_authorized_authors_raises
     error = assert_raises(OrderTaker::ConfigError) {
-      OrderTaker::Config.new(CONFIG_JSON.reject { |key, _| key == "authorized_authors" })
+      OrderTaker::Config.new(CONFIG_JSON.except("authorized_authors"))
     }
     assert_match(/authorized_authors/, error.message)
   end
@@ -47,6 +48,16 @@ class ConfigTest < TLDR
 
   def test_blank_ignore_word_raises
     assert_raises(OrderTaker::ConfigError) { build_config("ignore_word" => "  ") }
+  end
+
+  def test_cleanup_word_is_optional_and_case_insensitive
+    config = build_config("cleanup_word" => "  Cleanup  ")
+
+    assert_equal "cleanup", config.cleanup_word
+  end
+
+  def test_blank_cleanup_word_raises
+    assert_raises(OrderTaker::ConfigError) { build_config("cleanup_word" => "  ") }
   end
 
   def test_bogus_agent_raises

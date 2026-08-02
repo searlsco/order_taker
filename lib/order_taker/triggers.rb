@@ -17,5 +17,10 @@ module OrderTaker
       return false unless ignore_word
       /\b#{Regexp.escape(ignore_word)}\b/i.match?(text.to_s)
     end
+
+    def self.cleanup?(text, cleanup_word)
+      return false unless cleanup_word
+      /\b#{Regexp.escape(cleanup_word)}\b/i.match?(text.to_s)
+    end
   end
 end

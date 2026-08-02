@@ -66,6 +66,17 @@ class GathererTest < TLDR
     assert_empty @state.issues(REPO)
   end
 
+  def test_cleanup_word_in_new_issue_does_not_open_session
+    config = build_config("cleanup_word" => "cleanup")
+    subject = gatherer(
+      {"repos/#{REPO}/issues" => [issue_json(7, title: "Cleanup old work")]},
+      config
+    )
+
+    assert_empty subject.poll
+    assert_empty @state.issues(REPO)
+  end
+
   def test_hashtag_selects_codex
     subject = gatherer("repos/#{REPO}/issues" => [issue_json(7, title: "A bug #codex")])
 
@@ -120,6 +131,66 @@ class GathererTest < TLDR
     subject.poll
 
     assert_empty @state.issues(REPO)
+  end
+
+  def test_cleanup_word_in_issue_comment_winds_down_existing_session
+    record = @state.ensure_issue(REPO, 7, agent: "claude")
+    record["phase"] = "work"
+    record["worktree"] = "/tmp/worktree"
+    config = build_config("cleanup_word" => "cleanup")
+    subject = gatherer(
+      {"repos/#{REPO}/issues/comments" => [comment_json(7, body: "Please CLEANUP now")]},
+      config
+    )
+
+    assert_equal [{repo: REPO, number: 7, merged: false}], subject.poll
+    assert_empty record["pending_events"]
+  end
+
+  def test_cleanup_word_in_pr_comment_winds_down_originating_issue
+    @state.ensure_issue(REPO, 7, agent: "claude")["pr_number"] = 9
+    config = build_config("cleanup_word" => "cleanup")
+    subject = gatherer(
+      {"repos/#{REPO}/issues/comments" => [comment_json(9, body: "cleanup")]},
+      config
+    )
+
+    assert_equal [{repo: REPO, number: 7, merged: false}], subject.poll
+  end
+
+  def test_cleanup_word_does_not_enroll_unknown_thread
+    config = build_config("cleanup_word" => "cleanup")
+    subject = gatherer(
+      {"repos/#{REPO}/issues/comments" => [comment_json(7, body: "cleanup")]},
+      config
+    )
+
+    assert_empty subject.poll
+    assert_empty @state.issues(REPO)
+  end
+
+  def test_cleanup_word_from_unauthorized_author_does_not_wind_down_session
+    @state.ensure_issue(REPO, 7, agent: "claude")
+    config = build_config("cleanup_word" => "cleanup")
+    subject = gatherer(
+      {"repos/#{REPO}/issues/comments" => [comment_json(7, body: "cleanup", author: "stranger")]},
+      config
+    )
+
+    assert_empty subject.poll
+  end
+
+  def test_cleanup_word_does_not_revive_archived_session
+    record = @state.ensure_issue(REPO, 7, agent: "claude")
+    record["phase"] = "archived"
+    config = build_config("cleanup_word" => "cleanup")
+    subject = gatherer(
+      {"repos/#{REPO}/issues/comments" => [comment_json(7, body: "cleanup")]},
+      config
+    )
+
+    assert_empty subject.poll
+    assert_equal "archived", record["phase"]
   end
 
   def test_bot_and_stale_comments_ignored
@@ -203,6 +274,21 @@ class GathererTest < TLDR
     assert_empty @state.issue(REPO, 7)["pending_events"]
   end
 
+  def test_cleanup_word_in_review_comment_winds_down_originating_issue
+    @state.ensure_issue(REPO, 7, agent: "claude")["pr_number"] = 9
+    config = build_config("cleanup_word" => "cleanup")
+    subject = gatherer(
+      {"repos/#{REPO}/pulls/comments" => [{
+        "body" => "cleanup", "path" => "lib/widget.rb",
+        "user" => {"login" => "searls"}, "created_at" => "2026-02-01T00:00:00Z",
+        "pull_request_url" => "https://api.github.com/repos/#{REPO}/pulls/9"
+      }]},
+      config
+    )
+
+    assert_equal [{repo: REPO, number: 7, merged: false}], subject.poll
+  end
+
   def test_review_summaries_polled_for_sessions_with_prs
     @state.ensure_issue(REPO, 7, agent: "claude")["pr_number"] = 9
     subject = gatherer("repos/#{REPO}/pulls/9/reviews" => [
@@ -230,6 +316,20 @@ class GathererTest < TLDR
     subject.poll
 
     assert_empty @state.issue(REPO, 7)["pending_events"]
+  end
+
+  def test_cleanup_word_in_review_winds_down_originating_issue
+    @state.ensure_issue(REPO, 7, agent: "claude")["pr_number"] = 9
+    config = build_config("cleanup_word" => "cleanup")
+    subject = gatherer(
+      {"repos/#{REPO}/pulls/9/reviews" => [{
+        "state" => "COMMENTED", "body" => "cleanup",
+        "user" => {"login" => "searls"}, "submitted_at" => "2026-02-01T00:00:00Z"
+      }]},
+      config
+    )
+
+    assert_equal [{repo: REPO, number: 7, merged: false}], subject.poll
   end
 
   def test_comment_revives_archived_session_to_plan_phase

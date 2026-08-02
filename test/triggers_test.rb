@@ -20,4 +20,11 @@ class TriggersTest < TLDR
     refute OrderTaker::Triggers.ignore?("Please reply", "hush")
     refute OrderTaker::Triggers.ignore?("Please hush", nil)
   end
+
+  def test_cleanup_word_matches_whole_word_case_insensitively
+    assert OrderTaker::Triggers.cleanup?("Please CLEANUP this session", "cleanup")
+    refute OrderTaker::Triggers.cleanup?("The cleanupable tasks", "cleanup")
+    refute OrderTaker::Triggers.cleanup?("Keep working", "cleanup")
+    refute OrderTaker::Triggers.cleanup?("Please cleanup", nil)
+  end
 end

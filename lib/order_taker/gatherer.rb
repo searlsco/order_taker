@@ -40,10 +40,10 @@ module OrderTaker
       end
 
       wind_downs = poll_issues(repo_config)
-      poll_comments(repo_config)
-      poll_review_comments(repo_config)
-      poll_reviews(repo_config)
-      wind_downs
+      wind_downs.concat(poll_comments(repo_config))
+      wind_downs.concat(poll_review_comments(repo_config))
+      wind_downs.concat(poll_reviews(repo_config))
+      wind_downs.uniq
     end
 
     def poll_issues(repo_config)
@@ -60,7 +60,8 @@ module OrderTaker
         pr = item["pull_request"]
 
         if !pr && item["created_at"] > cursor && authorized_human?(author) &&
-            !ignored?("#{item["title"]}\n#{item["body"]}")
+            !ignored?("#{item["title"]}\n#{item["body"]}") &&
+            !cleanup?("#{item["title"]}\n#{item["body"]}")
           open_session(repo_config, item)
         end
 
@@ -90,6 +91,7 @@ module OrderTaker
       repo = repo_config.full_name
       cursor = state.cursor(repo, "comments")
       items = gh.api("repos/#{repo}/issues/comments?since=#{cursor}&per_page=100", paginate: true)
+      wind_downs = []
       max_seen = cursor
 
       items.sort_by { |c| c["created_at"] }.each do |comment|
@@ -98,9 +100,14 @@ module OrderTaker
         max_seen = [max_seen, created].max
         author = comment.dig("user", "login")
         next unless authorized_human?(author)
-        next if ignored?(comment["body"])
 
         number = comment["issue_url"][%r{/(\d+)\z}, 1].to_i
+        if cleanup?(comment["body"])
+          wind_downs.concat([cleanup_wind_down(repo, number)].compact)
+          next
+        end
+        next if ignored?(comment["body"])
+
         if (target = route_target(repo, number))
           state.append_events(repo, target, [comment_event(comment)])
         else
@@ -109,12 +116,14 @@ module OrderTaker
       end
 
       state.set_cursor(repo, "comments", max_seen)
+      wind_downs
     end
 
     def poll_review_comments(repo_config)
       repo = repo_config.full_name
       cursor = state.cursor(repo, "review_comments")
       items = gh.api("repos/#{repo}/pulls/comments?since=#{cursor}&per_page=100", paginate: true)
+      wind_downs = []
       max_seen = cursor
 
       items.sort_by { |c| c["created_at"] }.each do |comment|
@@ -123,9 +132,14 @@ module OrderTaker
         max_seen = [max_seen, created].max
         author = comment.dig("user", "login")
         next unless authorized_human?(author)
-        next if ignored?(comment["body"])
 
         pr_number = comment["pull_request_url"][%r{/(\d+)\z}, 1].to_i
+        if cleanup?(comment["body"])
+          wind_downs.concat([cleanup_wind_down(repo, pr_number)].compact)
+          next
+        end
+        next if ignored?(comment["body"])
+
         next unless (target = route_target(repo, pr_number))
         state.append_events(repo, target, [{
           "type" => "review_comment",
@@ -136,6 +150,7 @@ module OrderTaker
       end
 
       state.set_cursor(repo, "review_comments", max_seen)
+      wind_downs
     end
 
     # Review summaries (approve/request-changes bodies) have no since-filtered
@@ -143,6 +158,7 @@ module OrderTaker
     def poll_reviews(repo_config)
       repo = repo_config.full_name
       cursor = state.cursor(repo, "reviews")
+      wind_downs = []
       max_seen = cursor
 
       state.issues(repo).each do |number, record|
@@ -154,6 +170,10 @@ module OrderTaker
           max_seen = [max_seen, submitted].max
           author = review.dig("user", "login")
           next unless authorized_human?(author)
+          if cleanup?(review["body"])
+            wind_downs << {repo: repo, number: number.to_i, merged: false}
+            next
+          end
           next if ignored?(review["body"])
           next if review["state"] == "COMMENTED" && review["body"].to_s.empty? # container for inline comments
 
@@ -167,6 +187,7 @@ module OrderTaker
       end
 
       state.set_cursor(repo, "reviews", max_seen)
+      wind_downs
     end
 
     def open_session(repo_config, issue)
@@ -234,6 +255,17 @@ module OrderTaker
       (record = state.issue(repo, number)) && record["phase"] != "archived"
     end
 
+    def cleanup_wind_down(repo, number)
+      target = if state.issue(repo, number)
+        number
+      elsif (found = state.issue_for_pr(repo, number))
+        found.first.to_i
+      end
+      return unless target && live_record?(repo, target)
+
+      {repo: repo, number: target, merged: false}
+    end
+
     def comment_event(comment)
       {
         "type" => "comment",
@@ -248,6 +280,10 @@ module OrderTaker
 
     def ignored?(text)
       Triggers.ignore?(text, config.ignore_word)
+    end
+
+    def cleanup?(text)
+      Triggers.cleanup?(text, config.cleanup_word)
     end
 
     def bot?(login)

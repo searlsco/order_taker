@@ -4,9 +4,9 @@ module OrderTaker
   class Config
     PATH = File.join(Dir.home, ".config", "order_taker", "config.json")
 
-    RepoConfig = Struct.new(:full_name, :path, :default_agent, :agent_args, keyword_init: true)
+    RepoConfig = Struct.new(:full_name, :path, :default_agent, :agent_args)
 
-    attr_reader :authorized_authors, :go_word, :ignore_word, :default_agent, :repos,
+    attr_reader :authorized_authors, :go_word, :ignore_word, :cleanup_word, :default_agent, :repos,
       :poll_interval_seconds, :max_concurrent_runs, :run_timeout_seconds
 
     def self.load(path = PATH)
@@ -27,6 +27,11 @@ module OrderTaker
       if json.key?("ignore_word")
         @ignore_word = json["ignore_word"].to_s.strip.downcase
         raise ConfigError, "ignore_word must not be blank" if @ignore_word.empty?
+      end
+
+      if json.key?("cleanup_word")
+        @cleanup_word = json["cleanup_word"].to_s.strip.downcase
+        raise ConfigError, "cleanup_word must not be blank" if @cleanup_word.empty?
       end
 
       @default_agent = json.fetch("default_agent", "claude")
@@ -65,6 +70,7 @@ module OrderTaker
         "authorized_authors": ["searls", "bitsly"],
         "go_word": "roadhouse",
         "ignore_word": "hush",
+        "cleanup_word": "cleanup",
         "default_agent": "claude",
         "poll_interval_seconds": 60,
         "max_concurrent_runs": 2,
